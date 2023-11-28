@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "cortex"
+version = "1.0.0"
+description = ""
+authors = ["Slava Petrov <slavapmk@gmail.com>"]
+packages = [{ include = "cortex", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+aiogram = "^3.2.0"
+sqlalchemy = "^2.0.23"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+cortex = "cortex.main:start"
