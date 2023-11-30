@@ -34,6 +34,7 @@ async def on_message(message: types.Message):
     text = message.md_text
     row = tables.Message(
         chat_id=message.chat.id,
+        user_id=message.from_user.id,
         text=text
     )
 
@@ -55,7 +56,7 @@ async def on_message(message: types.Message):
                 json=data
             )
         resp = await execute
-        row.scan_result = resp.text()
+        row.scan_result = await resp.text()
 
     with Session(database.engine) as session:
         session.add(row)
