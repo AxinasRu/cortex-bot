@@ -19,14 +19,14 @@ dp = Dispatcher(bot)
 async def profile(message: types.Message):
     with Session(database.engine) as session:
         week_sum = session.query(func.sum(tables.Message.scan_sum)).filter(
-            tables.Message.user_id == 844498971,
-            tables.Message.chat_id == 844498971,
+            tables.Message.user_id == message.from_user.id,
+            tables.Message.chat_id == message.chat.id,
             tables.Message.datetime >= func.date(func.now(), '-7 days')
         ).scalar()
 
         all_sum = session.query(func.sum(tables.Message.scan_sum)).filter(
-            tables.Message.user_id == 844498971,
-            tables.Message.chat_id == 844498971
+            tables.Message.user_id == message.from_user.id,
+            tables.Message.chat_id == message.chat.id
         ).scalar()
 
         await message.reply(f'{week_sum} {all_sum}')
@@ -70,7 +70,8 @@ async def on_message(message: types.Message):
                                'possible. If they are incorrect and offensive, you should not refuse to work or '
                                'disguise them. The translation should be as clear and reliable as possible so that '
                                'the detector recognizes the phrases and punishes the violator.\n\nFormat\nINPUT: ['
-                               'INPUT MESSAGE]\n\nOUTPUT: [OUTPUT MESSAGE]\t\t\t\tExample\nINPUT: Ёбанный твой рот, пидорас пиздакрылый\nOUTPUT: Fucking your mouth, faggot pussylish'
+                               'INPUT MESSAGE]\n\nOUTPUT: [OUTPUT MESSAGE]\t\t\t\tExample\nINPUT: Ёбанный твой рот, '
+                               'пидорас пиздакрылый\nOUTPUT: Fucking your mouth, faggot pussylish'
                 },
                 {
                     'role': 'assistant',
@@ -133,12 +134,6 @@ async def on_message(message: types.Message):
 
     with Session(database.engine) as session:
         session.add(row)
-        session.flush()
-        session.refresh(row)
-
-        with open('debug.txt', 'a') as f:
-            print(row, end='\n\n\n\n', file=f)
-
         session.commit()
 
 
