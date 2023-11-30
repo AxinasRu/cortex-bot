@@ -7,10 +7,13 @@ SETTINGS_FILE = f'{consts.storage_folder}/{consts.settings_file}'
 
 os.makedirs(consts.storage_folder, exist_ok=True)
 
+TELEGRAM = 'telegram'
+OPENAI = 'openai'
+PROXY = 'proxy'
 settings = {
-    'telegram': '',
-    'openai': '',
-    'proxy': ''
+    TELEGRAM: '',
+    OPENAI: '',
+    PROXY: ''
 }
 
 try:
@@ -23,6 +26,6 @@ except IOError:
         json.dump(settings, file, sort_keys=True, indent=2)
     print("Insert token")
     exit()
-if settings['telegram'] == '':
-    print("Insert token")
+if settings[TELEGRAM] == '' or settings[OPENAI] == '':
+    print("Insert tokens")
     exit()

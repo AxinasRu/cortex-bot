@@ -10,6 +10,8 @@ class Base(DeclarativeBase):
 class Chat(Base):
     __tablename__ = 'chats'
     id: Mapped[int] = mapped_column(primary_key=True, unique=True, index=True, nullable=False)
+    messages: Mapped[list['Message']] = relationship()
+    admins: Mapped[list['Admin']] = relationship()
 
 
 class Message(Base):

@@ -7,7 +7,7 @@ packages = [{ include = "cortex", from = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-aiogram = "^3.2.0"
+aiogram = "2.25.1"
 sqlalchemy = "^2.0.23"
 
 [build-system]
