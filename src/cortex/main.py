@@ -9,7 +9,7 @@ from cortex import manager
 from cortex.db import database, tables
 from cortex.manager import TELEGRAM, OPENAI, PROXY
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 bot = Bot(token=manager.settings[TELEGRAM])
 dp = Dispatcher(bot)
 
@@ -60,7 +60,7 @@ async def on_message(message: types.Message):
     with Session(database.engine) as session:
         session.add(row)
         session.commit()
-
+    print('Result received')
 
 def start():
     executor.start_polling(dp)
