@@ -9,6 +9,7 @@ packages = [{ include = "cortex", from = "src" }]
 python = "^3.8"
 aiogram = "2.25.1"
 sqlalchemy = "^2.0.23"
+datetime = "^5.3"
 
 [build-system]
 requires = ["poetry-core"]
