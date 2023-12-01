@@ -4,4 +4,4 @@ services:
   bot:
     build: .
     volumes:
-      - ./data:/app/data
+      - ./storage:/app/storage
