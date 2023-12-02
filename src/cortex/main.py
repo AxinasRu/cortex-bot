@@ -15,21 +15,74 @@ bot = Bot(token=manager.settings[TELEGRAM])
 dp = Dispatcher(bot)
 
 
-@dp.message_handler(commands=['myinfo'])
+@dp.message_handler(commands=['info'])
 async def profile(message: types.Message):
     with Session(database.engine) as session:
-        week_sum = session.query(func.sum(tables.Message.scan_sum)).filter(
+        all_sums = round_list((await generate_query(session)).filter(
+            tables.Message.user_id == message.from_user.id,
+            tables.Message.chat_id == message.chat.id
+        ).first())
+
+        week_sums = round_list((await generate_query(session)).filter(
             tables.Message.user_id == message.from_user.id,
             tables.Message.chat_id == message.chat.id,
             tables.Message.datetime >= func.date(func.now(), '-7 days')
-        ).scalar()
+        ).first())
 
-        all_sum = session.query(func.sum(tables.Message.scan_sum)).filter(
-            tables.Message.user_id == message.from_user.id,
-            tables.Message.chat_id == message.chat.id
-        ).scalar()
+        await message.reply(f"""*{message.from_user.full_name}, твоё количество баллов на данный момент*
+        
+*За последние 7 дней:*
+\* Ненависть - {week_sums[0]}
+\* Ненависть/угрожающий - {week_sums[1]}
+\* Домогательство - {week_sums[2]}
+\* Домогательство/угрожающий - {week_sums[3]}
+\* Поощрение селфхарма - {week_sums[4]}
+\* Селфхарм - {week_sums[5]}
+\* Инструкции селфхарма - {week_sums[6]}
+\* Сексуальное - {week_sums[7]}
+\* Сексуальное несоверш. - {week_sums[8]}
+\* Насилие - {week_sums[9]}
+\* Описание насилия - {week_sums[10]}
+\* Суммарно - {week_sums[11]}
 
-        await message.reply(f'{week_sum} {all_sum}')
+*За всё время:*
+\* Ненависть - {all_sums[0]}
+\* Ненависть/угрожающий - {all_sums[1]}
+\* Домогательство - {all_sums[2]}
+\* Домогательство/угрожающий - {all_sums[3]}
+\* Поощрение селфхарма - {all_sums[4]}
+\* Селфхарм - {all_sums[5]}
+\* Инструкции селфхарма - {all_sums[6]}
+\* Сексуальное - {all_sums[7]}
+\* Сексуальное несоверш. - {all_sums[8]}
+\* Насилие - {all_sums[9]}
+\* Описание насилия - {all_sums[10]}
+\* Суммарно - {all_sums[11]}
+        """, parse_mode='markdown')
+
+
+async def generate_query(session):
+    return session.query(
+        func.sum(tables.Message.scan_hate),
+        func.sum(tables.Message.scan_hate_threatening),
+        func.sum(tables.Message.scan_harassment),
+        func.sum(tables.Message.scan_harassment_threatening),
+        func.sum(tables.Message.scan_self_harm),
+        func.sum(tables.Message.scan_self_harm_intent),
+        func.sum(tables.Message.scan_self_harm_instructions),
+        func.sum(tables.Message.scan_sexual),
+        func.sum(tables.Message.scan_sexual_minors),
+        func.sum(tables.Message.scan_violence),
+        func.sum(tables.Message.scan_violence_graphic),
+        func.sum(tables.Message.scan_sum)
+    )
+
+
+def round_list(l):
+    return list(map(
+        lambda x: 0 if x is None else round(x * 10) / 10,
+        l
+    ))
 
 
 @dp.message_handler(content_types=['new_chat_members'])
