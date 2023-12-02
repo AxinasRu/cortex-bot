@@ -1,4 +1,5 @@
 import logging
+from asyncio import sleep
 
 import aiohttp
 from aiogram import types, Bot, Dispatcher
@@ -100,7 +101,7 @@ async def on_join(message: types.Message):
 
 @dp.message_handler()
 async def on_message(message: types.Message):
-    if message.is_command():
+    if message.is_command() or message.from_user.is_bot:
         return
     text = message.md_text
     row = tables.Message(
@@ -137,21 +138,33 @@ async def on_message(message: types.Message):
                 }
             ]
         }
-        if manager.settings[PROXY] == '':
-            execute = session.post(
-                url,
-                headers=headers,
-                json=data
-            )
-        else:
-            execute = session.post(
-                url,
-                proxy=manager.settings[PROXY],
-                headers=headers,
-                json=data
-            )
-        resp = await (await execute).json()
-        translated: str = resp['choices'][0]['message']['content'].removeprefix('OUTPUT:').strip()
+
+        while True:
+            if manager.settings[PROXY] == '':
+                execute = session.post(
+                    url,
+                    headers=headers,
+                    json=data
+                )
+            else:
+                execute = session.post(
+                    url,
+                    proxy=manager.settings[PROXY],
+                    headers=headers,
+                    json=data
+                )
+            resp = (await execute)
+            resp_data = await resp.json()
+            if resp.status == 200:
+                break
+            if resp.status == 429:
+                await sleep(25)
+                continue
+            if resp.status == 500 or resp.status == 503:
+                await sleep(0.5)
+                continue
+
+        translated: str = resp_data['choices'][0]['message']['content'].removeprefix('OUTPUT:').strip()
         row.translated = translated
 
         url = "https://api.openai.com/v1/moderations"
@@ -171,19 +184,19 @@ async def on_message(message: types.Message):
                 json=data
             )
 
-        resp = (await (await execute).json())['results'][0]['category_scores']
+        resp_data = (await (await execute).json())['results'][0]['category_scores']
 
-        row.scan_sexual = resp['sexual']
-        row.scan_hate = resp['hate']
-        row.scan_harassment = resp['harassment']
-        row.scan_self_harm = resp['self-harm']
-        row.scan_sexual_minors = resp['sexual/minors']
-        row.scan_hate_threatening = resp['hate/threatening']
-        row.scan_violence_graphic = resp['violence/graphic']
-        row.scan_self_harm_intent = resp['self-harm/intent']
-        row.scan_self_harm_instructions = resp['self-harm/instructions']
-        row.scan_harassment_threatening = resp['harassment/threatening']
-        row.scan_violence = resp['violence']
+        row.scan_sexual = resp_data['sexual']
+        row.scan_hate = resp_data['hate']
+        row.scan_harassment = resp_data['harassment']
+        row.scan_self_harm = resp_data['self-harm']
+        row.scan_sexual_minors = resp_data['sexual/minors']
+        row.scan_hate_threatening = resp_data['hate/threatening']
+        row.scan_violence_graphic = resp_data['violence/graphic']
+        row.scan_self_harm_intent = resp_data['self-harm/intent']
+        row.scan_self_harm_instructions = resp_data['self-harm/instructions']
+        row.scan_harassment_threatening = resp_data['harassment/threatening']
+        row.scan_violence = resp_data['violence']
 
     with Session(database.engine) as session:
         session.add(row)
