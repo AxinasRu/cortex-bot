@@ -11,16 +11,16 @@ from sqlalchemy.orm import Session
 from cortex import manager
 from cortex.db import database, tables
 from cortex.manager import TELEGRAM, OPENAI, PROXY
-from cortex.messages import profile_message, translate_prompt
+from cortex.messages import profile_message, translate_prompt, help_message
 
 logging.basicConfig(level=logging.DEBUG)
 bot = Bot(token=manager.settings[TELEGRAM])
 dp = Dispatcher(bot)
 
 
-def round_list(floats):
+def round_list(floats, basis):
     return list(map(
-        lambda x: 0 if x is None else round(x * 10) / 10,
+        lambda x: 0 if x is None else round(x * (1 / basis)) / (1 / basis),
         floats
     ))
 
@@ -42,19 +42,24 @@ async def generate_query(session):
     ).join(tables.Log, tables.Message.id == tables.Log.message_id)
 
 
+@dp.message_handler(commands=['help', 'start'])
+async def start(message: types.Message):
+    await message.answer(help_message, parse_mode='markdown')
+
+
 @dp.message_handler(commands=['info'])
 async def profile(message: types.Message):
     with Session(database.engine) as session:
         all_sums = round_list((await generate_query(session)).filter(
             tables.Log.user_id == message.from_user.id,
             tables.Log.chat_id == message.chat.id
-        ).first())
+        ).first(), 0.1)
 
         week_sums = round_list((await generate_query(session)).filter(
             tables.Log.user_id == message.from_user.id,
             tables.Log.chat_id == message.chat.id,
             tables.Log.datetime >= func.date(func.now(), '-7 days')
-        ).first())
+        ).first(), 0.1)
         await message.reply(
             profile_message(message.from_user.full_name, all_sums, week_sums),
             parse_mode='markdown'
