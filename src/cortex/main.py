@@ -105,8 +105,8 @@ async def on_message(message: types.Message):
                 print(e)
                 await sleep(5)
                 continue
-            resp_data = await resp.json()
             if resp.status == 200:
+                resp_data = await resp.json()
                 break
             if resp.status == 429:
                 await sleep(25)
@@ -122,22 +122,21 @@ async def on_message(message: types.Message):
         url = "https://api.openai.com/v1/moderations"
         headers = {'Authorization': f'Bearer {manager.settings[OPENAI]}'}
         data = {'input': translated}
-        if manager.settings[PROXY] == '':
-            execute = session.post(url, headers=headers, json=data)
-        else:
-            execute = session.post(url, proxy=manager.settings[PROXY], headers=headers, json=data)
 
         while True:
+            if manager.settings[PROXY] == '':
+                execute = session.post(url, headers=headers, json=data)
+            else:
+                execute = session.post(url, proxy=manager.settings[PROXY], headers=headers, json=data)
             try:
                 resp = await execute
             except ClientError as e:
                 print(e)
                 await sleep(5)
                 continue
-            resp_data = (await resp.json())['results'][0]['category_scores']
             if resp.status == 200:
-                await sleep(5)
-                continue
+                resp_data = (await resp.json())['results'][0]['category_scores']
+                break
             if resp.status == 429:
                 await sleep(25)
                 continue
