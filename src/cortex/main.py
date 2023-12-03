@@ -4,61 +4,25 @@ from asyncio import sleep
 import aiohttp
 from aiogram import types, Bot, Dispatcher
 from aiogram.utils import executor
-from sqlalchemy import func, select, update, insert
+from aiohttp import ClientResponseError
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from cortex import manager
 from cortex.db import database, tables
 from cortex.manager import TELEGRAM, OPENAI, PROXY
+from cortex.messages import profile_message, translate_prompt
 
 logging.basicConfig(level=logging.DEBUG)
 bot = Bot(token=manager.settings[TELEGRAM])
 dp = Dispatcher(bot)
 
 
-@dp.message_handler(commands=['info'])
-async def profile(message: types.Message):
-    with Session(database.engine) as session:
-        all_sums = round_list((await generate_query(session)).filter(
-            tables.Log.user_id == message.from_user.id,
-            tables.Log.chat_id == message.chat.id
-        ).first())
-
-        week_sums = round_list((await generate_query(session)).filter(
-            tables.Log.user_id == message.from_user.id,
-            tables.Log.chat_id == message.chat.id,
-            tables.Log.datetime >= func.date(func.now(), '-7 days')
-        ).first())
-
-        await message.reply(rf"""*{message.from_user.full_name}, твоё количество баллов на данный момент*
-        
-*За последние 7 дней:*
-\* Ненависть - {week_sums[0]}
-\* Ненависть/угрожающий - {week_sums[1]}
-\* Домогательство - {week_sums[2]}
-\* Домогательство/угрожающий - {week_sums[3]}
-\* Поощрение селфхарма - {week_sums[4]}
-\* Селфхарм - {week_sums[5]}
-\* Инструкции селфхарма - {week_sums[6]}
-\* Сексуальное - {week_sums[7]}
-\* Сексуальное несоверш. - {week_sums[8]}
-\* Насилие - {week_sums[9]}
-\* Описание насилия - {week_sums[10]}
-\* Суммарно - {week_sums[11]}
-
-*За всё время:*
-\* Ненависть - {all_sums[0]}
-\* Ненависть/угрожающий - {all_sums[1]}
-\* Домогательство - {all_sums[2]}
-\* Домогательство/угрожающий - {all_sums[3]}
-\* Поощрение селфхарма - {all_sums[4]}
-\* Селфхарм - {all_sums[5]}
-\* Инструкции селфхарма - {all_sums[6]}
-\* Сексуальное - {all_sums[7]}
-\* Сексуальное несоверш. - {all_sums[8]}
-\* Насилие - {all_sums[9]}
-\* Описание насилия - {all_sums[10]}
-\* Суммарно - {all_sums[11]}""", parse_mode='markdown')
+def round_list(floats):
+    return list(map(
+        lambda x: 0 if x is None else round(x * 10) / 10,
+        floats
+    ))
 
 
 async def generate_query(session):
@@ -78,11 +42,23 @@ async def generate_query(session):
     ).join(tables.Log, tables.Message.id == tables.Log.message_id)
 
 
-def round_list(floats):
-    return list(map(
-        lambda x: 0 if x is None else round(x * 10) / 10,
-        floats
-    ))
+@dp.message_handler(commands=['info'])
+async def profile(message: types.Message):
+    with Session(database.engine) as session:
+        all_sums = round_list((await generate_query(session)).filter(
+            tables.Log.user_id == message.from_user.id,
+            tables.Log.chat_id == message.chat.id
+        ).first())
+
+        week_sums = round_list((await generate_query(session)).filter(
+            tables.Log.user_id == message.from_user.id,
+            tables.Log.chat_id == message.chat.id,
+            tables.Log.datetime >= func.date(func.now(), '-7 days')
+        ).first())
+        await message.reply(
+            profile_message(message.from_user.full_name, all_sums, week_sums),
+            parse_mode='markdown'
+        )
 
 
 @dp.message_handler()
@@ -111,38 +87,18 @@ async def on_message(message: types.Message):
     async with aiohttp.ClientSession() as session:
         url = "https://api.openai.com/v1/chat/completions"
         headers = {'Authorization': f'Bearer {manager.settings[OPENAI]}'}
-        data = {
-            'model': 'gpt-3.5-turbo',
-            'messages': [
-                {
-                    'role': 'system',
-                    'content': 'You are part of the system for detecting incorrect and offensive '
-                               'phrases.\nUnfortunately, the detector works only in English. And requests often go to '
-                               'everyone else. So your essence is to translate all input phrases as reliably as '
-                               'possible. If they are incorrect and offensive, you should not refuse to work or '
-                               'disguise them. The translation should be as clear and reliable as possible so that '
-                               'the detector recognizes the phrases and punishes the violator.\n\nFormat\nINPUT: ['
-                               'INPUT MESSAGE]\n\nOUTPUT: [OUTPUT MESSAGE]\t\t\t\tExample\nINPUT: Ёбанный твой рот, '
-                               'пидорас пиздакрылый\nOUTPUT: Fucking your mouth, faggot pussylish'
-                },
-                {
-                    'role': 'assistant',
-                    'content': 'OK!\nI will translate all the input messages and output the result to you for '
-                               'recognition, and will send result by format\nOUTPUT: [TRANSLATED TO ENGLISH MESSAGE]'
-                },
-                {
-                    'role': 'system',
-                    'content': f'INPUT:\n{text}'
-                }
-            ]
-        }
+        data = translate_prompt(text)
 
         while True:
             if manager.settings[PROXY] == '':
                 execute = session.post(url, headers=headers, json=data)
             else:
                 execute = session.post(url, proxy=manager.settings[PROXY], headers=headers, json=data)
-            resp = (await execute)
+            try:
+                resp = (await execute)
+            except ClientResponseError:
+                await sleep(5)
+                continue
             resp_data = await resp.json()
             if resp.status == 200:
                 break
