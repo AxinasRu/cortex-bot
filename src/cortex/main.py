@@ -4,7 +4,7 @@ from asyncio import sleep
 import aiohttp
 from aiogram import types, Bot, Dispatcher
 from aiogram.utils import executor
-from aiohttp import ClientResponseError
+from aiohttp import ClientError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -101,7 +101,8 @@ async def on_message(message: types.Message):
                 execute = session.post(url, proxy=manager.settings[PROXY], headers=headers, json=data)
             try:
                 resp = (await execute)
-            except ClientResponseError:
+            except ClientError as e:
+                print(e)
                 await sleep(5)
                 continue
             resp_data = await resp.json()
@@ -126,7 +127,23 @@ async def on_message(message: types.Message):
         else:
             execute = session.post(url, proxy=manager.settings[PROXY], headers=headers, json=data)
 
-        resp_data = (await (await execute).json())['results'][0]['category_scores']
+        while True:
+            try:
+                resp = await execute
+            except ClientError as e:
+                print(e)
+                await sleep(5)
+                continue
+            resp_data = (await resp.json())['results'][0]['category_scores']
+            if resp.status == 200:
+                await sleep(5)
+                continue
+            if resp.status == 429:
+                await sleep(25)
+                continue
+            if resp.status == 500 or resp.status == 503:
+                await sleep(0.5)
+                continue
 
         db_message.scan_sexual = resp_data['sexual']
         db_message.scan_hate = resp_data['hate']
