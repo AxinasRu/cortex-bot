@@ -93,7 +93,7 @@ async def on_message(message: types.Message):
         url = "https://api.openai.com/v1/chat/completions"
         headers = {'Authorization': f'Bearer {manager.settings[OPENAI]}'}
         data = translate_prompt(text)
-        print(f'Translating {message.message_id}')
+        print(f'Translating {message.message_id}', flush=True)
         while True:
             if manager.proxy() is None:
                 execute = session.post(url, headers=headers, json=data)
@@ -120,7 +120,7 @@ async def on_message(message: types.Message):
         translated: str = resp_data['choices'][0]['message']['content'].removeprefix('OUTPUT:').strip()
         db_message.translated = translated
 
-        print(f'Checking {message.message_id}')
+        print(f'Checking {message.message_id}', flush=True)
         url = "https://api.openai.com/v1/moderations"
         headers = {'Authorization': f'Bearer {manager.settings[OPENAI]}'}
         data = {'input': translated}
@@ -160,7 +160,7 @@ async def on_message(message: types.Message):
         db_message.scan_harassment_threatening = resp_data['harassment/threatening']
         db_message.scan_violence = resp_data['violence']
 
-    print(f'Writing {message.message_id}')
+    print(f'Writing {message.message_id}', flush=True)
     with Session(database.engine) as session:
         session.add(db_message)
         session.flush()

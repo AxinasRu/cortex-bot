@@ -25,10 +25,10 @@ try:
 except IOError:
     with open(SETTINGS_FILE, 'w') as file:
         json.dump(settings, file, sort_keys=True, indent=2)
-    print("Insert token")
+    print("Insert token", flush=True)
     exit()
 if settings[TELEGRAM] == '' or settings[OPENAI] == '':
-    print("Insert tokens")
+    print("Insert tokens", flush=True)
     exit()
 
 
@@ -41,4 +41,4 @@ def proxy() -> str | None:
 def switch_proxy():
     global proxy_id
     proxy_id = (proxy_id + 1) % len(settings[PROXIES])
-    print(f'Switching proxy to {proxy_id}')
+    print(f'Switching proxy to {proxy_id}', flush=True)
