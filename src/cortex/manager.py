@@ -9,12 +9,13 @@ os.makedirs(consts.storage_folder, exist_ok=True)
 
 TELEGRAM = 'telegram'
 OPENAI = 'openai'
-PROXY = 'proxy'
+PROXIES = 'proxies'
 settings = {
     TELEGRAM: '',
     OPENAI: '',
-    PROXY: ''
+    PROXIES: []
 }
+proxy_id = 0
 
 try:
     with open(SETTINGS_FILE, 'r') as rf:
@@ -29,3 +30,16 @@ except IOError:
 if settings[TELEGRAM] == '' or settings[OPENAI] == '':
     print("Insert tokens")
     exit()
+
+
+@property
+def proxy() -> str | None:
+    if len(settings[PROXIES]) == 0:
+        return None
+    return settings[PROXIES][proxy_id]
+
+
+def switch_proxy():
+    print('Switching proxy')
+    global proxy_id
+    proxy_id = (proxy_id + 1) % len(settings[PROXIES])

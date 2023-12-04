@@ -4,7 +4,7 @@ from asyncio import sleep
 import aiohttp
 from aiogram import types, Bot, Dispatcher
 from aiogram.utils import executor
-from aiohttp import ClientError
+from aiohttp import ClientError, ClientHttpProxyError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -95,12 +95,14 @@ async def on_message(message: types.Message):
         data = translate_prompt(text)
         print(f'Translating {message.message_id}')
         while True:
-            if manager.settings[PROXY] == '':
+            if manager.proxy is None:
                 execute = session.post(url, headers=headers, json=data)
             else:
-                execute = session.post(url, proxy=manager.settings[PROXY], headers=headers, json=data)
+                execute = session.post(url, proxy=manager.proxy, headers=headers, json=data)
             try:
                 resp = (await execute)
+            except ClientHttpProxyError:
+                manager.switch_proxy()
             except ClientError as e:
                 print(e)
                 await sleep(5)
@@ -124,12 +126,14 @@ async def on_message(message: types.Message):
         data = {'input': translated}
 
         while True:
-            if manager.settings[PROXY] == '':
+            if manager.proxy is None:
                 execute = session.post(url, headers=headers, json=data)
             else:
-                execute = session.post(url, proxy=manager.settings[PROXY], headers=headers, json=data)
+                execute = session.post(url, proxy=manager.proxy, headers=headers, json=data)
             try:
                 resp = await execute
+            except ClientHttpProxyError:
+                manager.switch_proxy()
             except ClientError as e:
                 print(e)
                 await sleep(5)
