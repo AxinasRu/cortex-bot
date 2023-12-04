@@ -28,7 +28,7 @@ class Message(Base):
     __tablename__ = 'messages'
     id: Mapped[int] = mapped_column(primary_key=True, unique=True, index=True, nullable=False)
     text: Mapped[str] = mapped_column(nullable=False, unique=True)
-    translated: Mapped[str] = mapped_column(nullable=False, unique=True)
+    translated: Mapped[str] = mapped_column(nullable=False)
     scan_sexual: Mapped[int] = mapped_column(nullable=False)
     scan_hate: Mapped[int] = mapped_column(nullable=False)
     scan_harassment: Mapped[int] = mapped_column(nullable=False)

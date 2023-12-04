@@ -32,7 +32,6 @@ if settings[TELEGRAM] == '' or settings[OPENAI] == '':
     exit()
 
 
-@property
 def proxy() -> str | None:
     if len(settings[PROXIES]) == 0:
         return None
@@ -40,6 +39,6 @@ def proxy() -> str | None:
 
 
 def switch_proxy():
-    print('Switching proxy')
     global proxy_id
     proxy_id = (proxy_id + 1) % len(settings[PROXIES])
+    print(f'Switching proxy to {proxy_id}')

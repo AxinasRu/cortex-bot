@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from cortex import manager
 from cortex.db import database, tables
-from cortex.manager import TELEGRAM, OPENAI, PROXY
+from cortex.manager import TELEGRAM, OPENAI
 from cortex.messages import profile_message, translate_prompt, help_message
 
 logging.basicConfig(level=logging.DEBUG)
@@ -95,17 +95,17 @@ async def on_message(message: types.Message):
         data = translate_prompt(text)
         print(f'Translating {message.message_id}')
         while True:
-            if manager.proxy is None:
+            if manager.proxy() is None:
                 execute = session.post(url, headers=headers, json=data)
             else:
-                execute = session.post(url, proxy=manager.proxy, headers=headers, json=data)
+                execute = session.post(url, proxy=manager.proxy(), headers=headers, json=data)
             try:
                 resp = (await execute)
-            except ClientHttpProxyError:
-                manager.switch_proxy()
-            except ClientError as e:
-                print(e)
-                await sleep(5)
+            except ClientError:
+                if manager.proxy() is None:
+                    await sleep(5)
+                else:
+                    manager.switch_proxy()
                 continue
             if resp.status == 200:
                 resp_data = await resp.json()
@@ -126,17 +126,17 @@ async def on_message(message: types.Message):
         data = {'input': translated}
 
         while True:
-            if manager.proxy is None:
+            if manager.proxy() is None:
                 execute = session.post(url, headers=headers, json=data)
             else:
-                execute = session.post(url, proxy=manager.proxy, headers=headers, json=data)
+                execute = session.post(url, proxy=manager.proxy(), headers=headers, json=data)
             try:
                 resp = await execute
-            except ClientHttpProxyError:
-                manager.switch_proxy()
-            except ClientError as e:
-                print(e)
-                await sleep(5)
+            except ClientError:
+                if manager.proxy() is None:
+                    await sleep(5)
+                else:
+                    manager.switch_proxy()
                 continue
             if resp.status == 200:
                 resp_data = (await resp.json())['results'][0]['category_scores']
@@ -170,9 +170,9 @@ async def on_message(message: types.Message):
         session.commit()
 
 
-def start():
+def run():
     executor.start_polling(dp)
 
 
 if __name__ == '__main__':
-    start()
+    run()
