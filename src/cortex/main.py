@@ -170,9 +170,9 @@ async def on_message(message: types.Message):
         session.commit()
 
 
-def run():
+def start():
     executor.start_polling(dp)
 
 
 if __name__ == '__main__':
-    run()
+    start()
