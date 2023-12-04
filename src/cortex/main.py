@@ -43,12 +43,12 @@ async def generate_query(session):
 
 
 @dp.message_handler(commands=['help', 'start'])
-async def start(message: types.Message):
+async def start_command(message: types.Message):
     await message.answer(help_message, parse_mode='markdown')
 
 
 @dp.message_handler(commands=['info'])
-async def profile(message: types.Message):
+async def profile_command(message: types.Message):
     with Session(database.engine) as session:
         all_sums = round_list((await generate_query(session)).filter(
             tables.Log.user_id == message.from_user.id,
