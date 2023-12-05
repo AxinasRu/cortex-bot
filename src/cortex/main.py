@@ -91,16 +91,12 @@ async def on_message(message: types.Message):
 
     async with aiohttp.ClientSession() as session:
         url = "https://api.openai.com/v1/chat/completions"
-        headers = {'Authorization': f'Bearer {manager.settings[OPENAI]}'}
         data = translate_prompt(text)
         print(f'Translating {message.message_id}', flush=True)
         while True:
-            if manager.proxy() is None:
-                execute = session.post(url, headers=headers, json=data)
-            else:
-                execute = session.post(url, proxy=manager.proxy(), headers=headers, json=data)
+            execute = await get_query(data, session, url)
             try:
-                resp = (await execute)
+                resp = await execute
             except ClientError as e:
                 if e is ClientProxyConnectionError:
                     manager.switch_proxy()
@@ -111,26 +107,22 @@ async def on_message(message: types.Message):
                 resp_data = await resp.json()
                 break
             if resp.status == 429:
-                # TODO SWITCH TOKEN
-                await sleep(25)
+                manager.switch_openai()
                 continue
             if resp.status == 500 or resp.status == 503:
                 await sleep(0.5)
                 continue
+            raise e
 
         translated: str = resp_data['choices'][0]['message']['content'].removeprefix('OUTPUT:').strip()
         db_message.translated = translated
 
         print(f'Checking {message.message_id}', flush=True)
         url = "https://api.openai.com/v1/moderations"
-        headers = {'Authorization': f'Bearer {manager.settings[OPENAI]}'}
         data = {'input': translated}
 
         while True:
-            if manager.proxy() is None:
-                execute = session.post(url, headers=headers, json=data)
-            else:
-                execute = session.post(url, proxy=manager.proxy(), headers=headers, json=data)
+            execute = await get_query(data, session, url)
             try:
                 resp = await execute
             except ClientError as e:
@@ -143,12 +135,12 @@ async def on_message(message: types.Message):
                 resp_data = (await resp.json())['results'][0]['category_scores']
                 break
             if resp.status == 429:
-                # TODO SWITCH TOKEN
-                await sleep(25)
+                manager.switch_openai()
                 continue
             if resp.status == 500 or resp.status == 503:
                 await sleep(0.5)
                 continue
+            raise e
 
         db_message.scan_sexual = resp_data['sexual']
         db_message.scan_hate = resp_data['hate']
@@ -170,6 +162,23 @@ async def on_message(message: types.Message):
         row.message_id = db_message.id
         session.add(row)
         session.commit()
+
+
+async def get_query(data, session, url):
+    if manager.proxy() is None:
+        execute = session.post(
+            url,
+            headers={'Authorization': f'Bearer {manager.openai()}'},
+            json=data
+        )
+    else:
+        execute = session.post(
+            url,
+            proxy=manager.proxy(),
+            headers={'Authorization': f'Bearer {manager.openai()}'},
+            json=data
+        )
+    return execute
 
 
 def start():
