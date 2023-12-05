@@ -4,7 +4,7 @@ from asyncio import sleep
 import aiohttp
 from aiogram import types, Bot, Dispatcher
 from aiogram.utils import executor
-from aiohttp import ClientError, ClientHttpProxyError
+from aiohttp import ClientError, ClientHttpProxyError, ClientProxyConnectionError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -101,16 +101,17 @@ async def on_message(message: types.Message):
                 execute = session.post(url, proxy=manager.proxy(), headers=headers, json=data)
             try:
                 resp = (await execute)
-            except ClientError:
-                if manager.proxy() is None:
-                    await sleep(5)
-                else:
+            except ClientError as e:
+                if e is ClientProxyConnectionError:
                     manager.switch_proxy()
+                    continue
+                await sleep(5)
                 continue
             if resp.status == 200:
                 resp_data = await resp.json()
                 break
             if resp.status == 429:
+                # TODO SWITCH TOKEN
                 await sleep(25)
                 continue
             if resp.status == 500 or resp.status == 503:
@@ -132,16 +133,17 @@ async def on_message(message: types.Message):
                 execute = session.post(url, proxy=manager.proxy(), headers=headers, json=data)
             try:
                 resp = await execute
-            except ClientError:
-                if manager.proxy() is None:
-                    await sleep(5)
-                else:
+            except ClientError as e:
+                if e is ClientProxyConnectionError:
                     manager.switch_proxy()
+                    continue
+                await sleep(5)
                 continue
             if resp.status == 200:
                 resp_data = (await resp.json())['results'][0]['category_scores']
                 break
             if resp.status == 429:
+                # TODO SWITCH TOKEN
                 await sleep(25)
                 continue
             if resp.status == 500 or resp.status == 503:
