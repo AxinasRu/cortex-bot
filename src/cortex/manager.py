@@ -46,10 +46,14 @@ def openai() -> str:
 def switch_proxy():
     global proxy_id
     proxy_id = (proxy_id + 1) % len(settings[PROXIES])
-    print(f'Switching proxy to {proxy_id}', flush=True)
+    print(f'Switching proxy to {proxy_id + 1}', flush=True)
 
 
 def switch_openai():
     global openai_id
     openai_id = (openai_id + 1) % len(settings[OPENAI])
-    print(f'Switching openai to {openai_id}', flush=True)
+    print(f'Switching openai to {openai_id + 1}', flush=True)
+
+
+def check_openai():
+    return len(settings[OPENAI]) == 1
