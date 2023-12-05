@@ -4,18 +4,24 @@ from asyncio import sleep
 import aiohttp
 from aiogram import types, Bot, Dispatcher
 from aiogram.utils import executor
-from aiohttp import ClientError, ClientHttpProxyError, ClientProxyConnectionError
+from aiohttp import ClientError, ClientProxyConnectionError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from cortex import manager
 from cortex.db import database, tables
-from cortex.manager import TELEGRAM, OPENAI
+from cortex.manager import TELEGRAM
 from cortex.messages import profile_message, translate_prompt, help_message
 
 logging.basicConfig(level=logging.DEBUG)
 bot = Bot(token=manager.settings[TELEGRAM])
 dp = Dispatcher(bot)
+
+
+@dp.message_handler(commands=['help', 'start'])
+async def start_command(message: types.Message):
+    await message.answer(help_message, parse_mode='markdown')
+
 
 
 def round_list(floats, basis):
@@ -40,12 +46,6 @@ async def generate_query(session):
         func.sum(tables.Message.scan_violence_graphic),
         func.sum(tables.Message.scan_summary)
     ).join(tables.Log, tables.Message.id == tables.Log.message_id)
-
-
-@dp.message_handler(commands=['help', 'start'])
-async def start_command(message: types.Message):
-    await message.answer(help_message, parse_mode='markdown')
-
 
 @dp.message_handler(commands=['info'])
 async def profile_command(message: types.Message):
@@ -101,6 +101,7 @@ async def on_message(message: types.Message):
                 if e is ClientProxyConnectionError:
                     manager.switch_proxy()
                     continue
+                print(e)
                 await sleep(5)
                 continue
             if resp.status == 200:
@@ -112,7 +113,6 @@ async def on_message(message: types.Message):
             if resp.status == 500 or resp.status == 503:
                 await sleep(0.5)
                 continue
-            raise e
 
         translated: str = resp_data['choices'][0]['message']['content'].removeprefix('OUTPUT:').strip()
         db_message.translated = translated
@@ -129,6 +129,7 @@ async def on_message(message: types.Message):
                 if e is ClientProxyConnectionError:
                     manager.switch_proxy()
                     continue
+                print(e)
                 await sleep(5)
                 continue
             if resp.status == 200:
@@ -140,7 +141,6 @@ async def on_message(message: types.Message):
             if resp.status == 500 or resp.status == 503:
                 await sleep(0.5)
                 continue
-            raise e
 
         db_message.scan_sexual = resp_data['sexual']
         db_message.scan_hate = resp_data['hate']
