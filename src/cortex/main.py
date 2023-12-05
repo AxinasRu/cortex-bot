@@ -149,7 +149,7 @@ async def process(data, session, url, callback=lambda x: None):
         if resp.status == 200:
             return await resp.json()
         elif resp.status == 429:
-            print(resp.text())
+            print(await resp.text(), flush=True)
             if manager.check_openai():
                 await sleep(25)
             else:
