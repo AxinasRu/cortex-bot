@@ -5,7 +5,6 @@ from asyncio import sleep
 import aiohttp
 from aiogram import types, Bot, Dispatcher
 from aiohttp import ClientError, ClientProxyConnectionError, ServerDisconnectedError
-from aiohttp.client import _RequestContextManager
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -91,8 +90,9 @@ async def on_message(message: types.Message):
 
 
 async def process(data, session, url, callback=lambda x: None):
-    i = 1
+    i = 0
     while True:
+        i += 1
         callback(i)
         try:
             resp = await get_query(data, session, url)
@@ -115,10 +115,9 @@ async def process(data, session, url, callback=lambda x: None):
                 manager.switch_openai()
         elif resp.status == 500 or resp.status == 503:
             await sleep(0.5)
-        i += 1
 
 
-def get_query(data, session, url) -> "_RequestContextManager":
+def get_query(data, session, url):
     headers = {'Authorization': f'Bearer {manager.openai()}'}
     if manager.proxy() is None:
         execute = session.post(
