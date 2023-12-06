@@ -135,7 +135,7 @@ def get_query(data, session, url):
     return execute
 
 
-async def cycle() -> None:
+async def queue_poller() -> None:
     while True:
         with Session(database.engine) as session:
             queue_unit = session.scalars(
@@ -196,12 +196,12 @@ async def cycle() -> None:
             session.commit()
 
 
-async def start() -> None:
-    await dp.start_polling()
+def start():
+    loop = asyncio.get_event_loop()
+    loop.create_task(dp.start_polling())
+    loop.create_task(queue_poller())
+    loop.run_forever()
 
 
 if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    loop.create_task(start())
-    loop.create_task(cycle())
-    loop.run_forever()
+    start()
