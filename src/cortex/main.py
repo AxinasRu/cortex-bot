@@ -1,10 +1,10 @@
+import asyncio
 import logging
 from asyncio import sleep
 
 import aiohttp
 from aiogram import types, Bot, Dispatcher
-from aiogram.utils import executor
-from aiohttp import ClientError, ClientProxyConnectionError, ClientOSError, ServerDisconnectedError
+from aiohttp import ClientError, ClientProxyConnectionError, ServerDisconnectedError
 from aiohttp.client import _RequestContextManager
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from cortex import manager
 from cortex.db import database, tables
 from cortex.manager import TELEGRAM
-from cortex.messages import profile_message, translate_prompt, help_message
+from cortex.messages import profile_message, help_message, translate_prompt
 
 logging.basicConfig(level=logging.DEBUG)
 bot = Bot(token=manager.settings[TELEGRAM])
@@ -73,61 +73,20 @@ async def on_message(message: types.Message):
         return
     text = message.text
 
-    row = tables.Log(
-        chat_id=message.chat.id,
-        user_id=message.from_user.id
-    )
-
     with Session(database.engine) as session:
         db_message = session.scalars(select(tables.Message).where(tables.Message.text == text)).one_or_none()
         if db_message is not None:
-            row.message_id = db_message.id
-            session.add(row)
-            session.commit()
-            return
-
-    db_message = tables.Message(
-        text=text
-    )
-
-    async with aiohttp.ClientSession() as session:
-        resp_data = await process(
-            translate_prompt(text),
-            session,
-            "https://api.openai.com/v1/chat/completions",
-            lambda i: print(f'Translating {message.message_id}@{message.chat.id} - attempt {i}', flush=True)
-        )
-
-        translated: str = resp_data['choices'][0]['message']['content'].removeprefix('OUTPUT:').strip()
-        db_message.translated = translated
-
-        resp_data = await process(
-            {'input': translated},
-            session,
-            "https://api.openai.com/v1/moderations",
-            lambda i: print(f'Checking {message.message_id}@{message.chat.id} - attempt {i}', flush=True)
-        )
-
-        resp_data = resp_data['results'][0]['category_scores']
-        db_message.scan_sexual = resp_data['sexual']
-        db_message.scan_hate = resp_data['hate']
-        db_message.scan_harassment = resp_data['harassment']
-        db_message.scan_self_harm = resp_data['self-harm']
-        db_message.scan_sexual_minors = resp_data['sexual/minors']
-        db_message.scan_hate_threatening = resp_data['hate/threatening']
-        db_message.scan_violence_graphic = resp_data['violence/graphic']
-        db_message.scan_self_harm_intent = resp_data['self-harm/intent']
-        db_message.scan_self_harm_instructions = resp_data['self-harm/instructions']
-        db_message.scan_harassment_threatening = resp_data['harassment/threatening']
-        db_message.scan_violence = resp_data['violence']
-
-    print(f'Writing {message.message_id}@{message.chat.id}', flush=True)
-    with Session(database.engine) as session:
-        session.add(db_message)
-        session.flush()
-        session.refresh(db_message)
-        row.message_id = db_message.id
-        session.add(row)
+            session.add(tables.Log(
+                chat_id=message.chat.id,
+                user_id=message.from_user.id,
+                message_id=db_message.id
+            ))
+        else:
+            session.add(tables.Queue(
+                chat_id=message.chat.id,
+                user_id=message.from_user.id,
+                text=text
+            ))
         session.commit()
 
 
@@ -177,9 +136,73 @@ def get_query(data, session, url) -> "_RequestContextManager":
     return execute
 
 
-def start() -> None:
-    executor.start_polling(dp)
+async def cycle() -> None:
+    while True:
+        with Session(database.engine) as session:
+            queue_unit = session.scalars(
+                select(tables.Queue)
+                .where(tables.Queue.status == 'in_work')
+            ).first()
+        if queue_unit is None:
+            await asyncio.sleep(1)
+            continue
+
+        db_message = tables.Message(
+            text=queue_unit.text
+        )
+
+        async with aiohttp.ClientSession() as session:
+            resp_data = await process(
+                translate_prompt(queue_unit.text),
+                session,
+                "https://api.openai.com/v1/chat/completions",
+                lambda i: print(f'Translating {queue_unit.id} - attempt {i}', flush=True)
+            )
+
+            translated: str = resp_data['choices'][0]['message']['content'].removeprefix('OUTPUT:').strip()
+            db_message.translated = translated
+
+            resp_data = await process(
+                {'input': translated},
+                session,
+                "https://api.openai.com/v1/moderations",
+                lambda i: print(f'Checking {queue_unit.id} - attempt {i}', flush=True)
+            )
+
+            resp_data = resp_data['results'][0]['category_scores']
+            db_message.scan_sexual = resp_data['sexual']
+            db_message.scan_hate = resp_data['hate']
+            db_message.scan_harassment = resp_data['harassment']
+            db_message.scan_self_harm = resp_data['self-harm']
+            db_message.scan_sexual_minors = resp_data['sexual/minors']
+            db_message.scan_hate_threatening = resp_data['hate/threatening']
+            db_message.scan_violence_graphic = resp_data['violence/graphic']
+            db_message.scan_self_harm_intent = resp_data['self-harm/intent']
+            db_message.scan_self_harm_instructions = resp_data['self-harm/instructions']
+            db_message.scan_harassment_threatening = resp_data['harassment/threatening']
+            db_message.scan_violence = resp_data['violence']
+
+        queue_unit.status = 'done'
+        print(f'Writing {queue_unit.id}', flush=True)
+        with Session(database.engine) as session:
+            session.add(db_message)
+            session.flush()
+            session.refresh(db_message)
+            session.add(tables.Log(
+                chat_id=queue_unit.chat_id,
+                user_id=queue_unit.user_id,
+                message_id=db_message.id
+            ))
+            session.add(queue_unit)
+            session.commit()
+
+
+async def start() -> None:
+    await dp.start_polling()
 
 
 if __name__ == '__main__':
-    start()
+    loop = asyncio.get_event_loop()
+    loop.create_task(start())
+    loop.create_task(cycle())
+    loop.run_forever()
