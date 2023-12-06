@@ -140,7 +140,7 @@ async def process(data, session, url, callback=lambda x: None):
         except ClientError as e:
             if isinstance(e, ClientProxyConnectionError):
                 manager.switch_proxy()
-            elif isinstance(e, ClientOSError | ServerDisconnectedError):
+            elif isinstance(e, OSError | ServerDisconnectedError):
                 await sleep(0.1)
             else:
                 print(e, flush=True)
