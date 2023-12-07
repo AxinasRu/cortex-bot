@@ -6,6 +6,7 @@ import aiohttp
 from aiogram import types, Bot, Dispatcher
 from aiohttp import ClientError, ClientProxyConnectionError, ServerDisconnectedError
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from cortex import manager
@@ -182,17 +183,21 @@ async def queue_poller() -> None:
             db_message.scan_harassment_threatening = resp_data['harassment/threatening']
             db_message.scan_violence = resp_data['violence']
 
-        queue_unit.status = 'done'
-        print(f'Writing {queue_unit.id}/{total_rows}', flush=True)
+        print(f'Writing {queue_unit.id}', flush=True)
         with Session(database.engine) as session:
-            session.add(db_message)
-            session.flush()
-            session.refresh(db_message)
-            session.add(tables.Log(
-                chat_id=queue_unit.chat_id,
-                user_id=queue_unit.user_id,
-                message_id=db_message.id
-            ))
+            try:
+                session.add(db_message)
+                session.flush()
+                session.refresh(db_message)
+                session.add(tables.Log(
+                    chat_id=queue_unit.chat_id,
+                    user_id=queue_unit.user_id,
+                    message_id=db_message.id
+                ))
+            except IntegrityError as e:
+                print(e)
+                session.rollback()
+            queue_unit.status = 'done'
             session.add(queue_unit)
             session.commit()
 
