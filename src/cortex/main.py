@@ -89,11 +89,11 @@ async def on_message(message: types.Message):
         session.commit()
 
 
-async def process(data, session, url, callback=lambda x: None):
-    i = 0
+async def process(data, session, url, callback: (lambda x: int)):
+    attempt = 0
     while True:
-        i += 1
-        callback(i)
+        attempt += 1
+        callback(attempt)
         try:
             resp = await get_query(data, session, url)
         except ClientError as e:
@@ -142,6 +142,7 @@ async def queue_poller() -> None:
                 select(tables.Queue)
                 .where(tables.Queue.status == 'in_work')
             ).first()
+            total_rows = session.query(func.count(tables.Queue.id)).scalar()
         if queue_unit is None:
             await asyncio.sleep(1)
             continue
@@ -155,7 +156,7 @@ async def queue_poller() -> None:
                 translate_prompt(queue_unit.text),
                 session,
                 "https://api.openai.com/v1/chat/completions",
-                lambda i: print(f'Translating {queue_unit.id} - attempt {i}', flush=True)
+                lambda i: print(f'Translating {queue_unit.id}/{total_rows} - attempt {i}', flush=True)
             )
 
             translated: str = resp_data['choices'][0]['message']['content'].removeprefix('OUTPUT:').strip()
@@ -165,7 +166,7 @@ async def queue_poller() -> None:
                 {'input': translated},
                 session,
                 "https://api.openai.com/v1/moderations",
-                lambda i: print(f'Checking {queue_unit.id} - attempt {i}', flush=True)
+                lambda i: print(f'Checking {queue_unit.id}/{total_rows} - attempt {i}', flush=True)
             )
 
             resp_data = resp_data['results'][0]['category_scores']
@@ -182,7 +183,7 @@ async def queue_poller() -> None:
             db_message.scan_violence = resp_data['violence']
 
         queue_unit.status = 'done'
-        print(f'Writing {queue_unit.id}', flush=True)
+        print(f'Writing {queue_unit.id}/{total_rows}', flush=True)
         with Session(database.engine) as session:
             session.add(db_message)
             session.flush()
