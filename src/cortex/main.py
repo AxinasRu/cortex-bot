@@ -14,7 +14,7 @@ from cortex.db import database, tables
 from cortex.manager import TELEGRAM
 from cortex.messages import profile_message, help_message, translate_prompt
 
-logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 bot = Bot(token=manager.settings[TELEGRAM])
 dp = Dispatcher(bot)
 
@@ -183,7 +183,7 @@ async def queue_poller() -> None:
             db_message.scan_harassment_threatening = resp_data['harassment/threatening']
             db_message.scan_violence = resp_data['violence']
 
-        print(f'Writing {queue_unit.id}', flush=True)
+        print(f'Writing {queue_unit.id}/{total_rows}', flush=True)
         with Session(database.engine) as session:
             try:
                 session.add(db_message)
