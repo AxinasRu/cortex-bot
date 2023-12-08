@@ -103,7 +103,8 @@ async def process(data, session, url, callback: (lambda x: int)):
             elif isinstance(e, OSError | ServerDisconnectedError):
                 await sleep(0.1)
             else:
-                print(type(e), e, flush=True)
+                print(type(e), flush=True)
+                print(e, flush=True)
                 await sleep(5)
             continue
         if resp.status == 502 or resp.status == 407:
