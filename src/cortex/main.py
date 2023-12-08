@@ -97,7 +97,7 @@ async def process(data, session, url, callback: (lambda x: int)):
         callback(attempt)
         try:
             resp = await get_query(data, session, url)
-        except OSError | ServerDisconnectedError:
+        except ServerDisconnectedError:
             await sleep(0.1)
             continue
         except ClientProxyConnectionError | ClientHttpProxyError:
