@@ -106,7 +106,9 @@ async def process(data, session, url, callback: (lambda x: int)):
                 print(e, flush=True)
                 await sleep(5)
             continue
-        if resp.status == 200:
+        if resp.status == 502:
+            manager.switch_proxy()
+        elif resp.status == 200:
             return await resp.json()
         elif resp.status == 429:
             print(await resp.text(), flush=True)
