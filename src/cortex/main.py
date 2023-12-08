@@ -100,7 +100,7 @@ async def process(data, session, url, callback: (lambda x: int)):
         except ServerDisconnectedError:
             await sleep(0.1)
             continue
-        except ClientProxyConnectionError | ClientHttpProxyError:
+        except (ClientProxyConnectionError, ClientHttpProxyError):
             manager.switch_proxy()
             continue
         except ClientError as e:
