@@ -1,7 +1,6 @@
 [tool.poetry]
 name = "cortex"
-version = "1.0.0"
-description = ""
+version = "0.0.3"
 authors = ["Slava Petrov <slavapmk@gmail.com>"]
 packages = [{ include = "cortex", from = "src" }]
 
@@ -16,4 +15,4 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-cortex = "cortex.main:start"
+cortex = "cortex.main:entrypoint"

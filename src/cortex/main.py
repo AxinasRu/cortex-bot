@@ -213,7 +213,7 @@ async def queue_poller() -> None:
             session.commit()
 
 
-def start():
+def entrypoint():
     loop = asyncio.get_event_loop()
     loop.create_task(dp.start_polling())
     loop.create_task(queue_poller())
@@ -221,4 +221,4 @@ def start():
 
 
 if __name__ == '__main__':
-    start()
+    entrypoint()
