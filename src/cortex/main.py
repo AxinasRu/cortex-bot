@@ -8,7 +8,7 @@ from aiohttp import ClientError, ClientProxyConnectionError, ServerDisconnectedE
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-
+from aiohttp.client_exceptions import ClientHttpProxyError
 from cortex import manager
 from cortex.db import database, tables
 from cortex.manager import TELEGRAM
@@ -98,7 +98,7 @@ async def process(data, session, url, callback: (lambda x: int)):
         try:
             resp = await get_query(data, session, url)
         except ClientError as e:
-            if isinstance(e, ClientProxyConnectionError):
+            if isinstance(e, ClientProxyConnectionError | ClientHttpProxyError):
                 manager.switch_proxy()
             elif isinstance(e, OSError | ServerDisconnectedError):
                 await sleep(0.1)
@@ -107,7 +107,7 @@ async def process(data, session, url, callback: (lambda x: int)):
                 print(e, flush=True)
                 await sleep(5)
             continue
-        if resp.status == 502 or resp.status == 407:
+        if resp.status == 502:
             manager.switch_proxy()
         elif resp.status == 200:
             return await resp.json()
