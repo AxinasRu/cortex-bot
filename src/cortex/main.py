@@ -111,7 +111,6 @@ async def process(data, session, url, callback: (lambda x: int)):
         except Exception as e:
             print(type(e), flush=True)
             print(e, flush=True)
-            await sleep(5)
             continue
         if resp.status == 502:
             manager.switch_proxy()
