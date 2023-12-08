@@ -1,14 +1,14 @@
 import asyncio
-import logging
 from asyncio import sleep
 
 import aiohttp
 from aiogram import types, Bot, Dispatcher
 from aiohttp import ClientError, ClientProxyConnectionError, ServerDisconnectedError
+from aiohttp.client_exceptions import ClientHttpProxyError
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from aiohttp.client_exceptions import ClientHttpProxyError
+
 from cortex import manager
 from cortex.db import database, tables
 from cortex.manager import TELEGRAM
@@ -97,15 +97,21 @@ async def process(data, session, url, callback: (lambda x: int)):
         callback(attempt)
         try:
             resp = await get_query(data, session, url)
+        except OSError | ServerDisconnectedError:
+            await sleep(0.1)
+            continue
+        except ClientProxyConnectionError | ClientHttpProxyError:
+            manager.switch_proxy()
+            continue
         except ClientError as e:
-            if isinstance(e, ClientProxyConnectionError | ClientHttpProxyError):
-                manager.switch_proxy()
-            elif isinstance(e, OSError | ServerDisconnectedError):
-                await sleep(0.1)
-            else:
-                print(type(e), flush=True)
-                print(e, flush=True)
-                await sleep(5)
+            print(type(e), flush=True)
+            print(e, flush=True)
+            await sleep(5)
+            continue
+        except Exception as e:
+            print(type(e), flush=True)
+            print(e, flush=True)
+            await sleep(5)
             continue
         if resp.status == 502:
             manager.switch_proxy()
@@ -119,6 +125,9 @@ async def process(data, session, url, callback: (lambda x: int)):
                 manager.switch_openai()
         elif resp.status == 500 or resp.status == 503:
             await sleep(0.5)
+        else:
+            print(resp.status, flush=True)
+            print(resp.text(), flush=True)
 
 
 def get_query(data, session, url):
