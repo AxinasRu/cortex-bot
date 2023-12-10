@@ -1,5 +1,6 @@
 [tool.poetry]
 name = "cortex"
+description = ""
 version = "0.0.3"
 authors = ["Slava Petrov <slavapmk@gmail.com>"]
 packages = [{ include = "cortex", from = "src" }]
