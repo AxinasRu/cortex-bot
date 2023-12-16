@@ -5,7 +5,7 @@ import aiohttp
 from aiogram import types, Bot, Dispatcher
 from aiohttp import ClientError, ClientProxyConnectionError, ServerDisconnectedError
 from aiohttp.client_exceptions import ClientHttpProxyError
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -157,8 +157,14 @@ async def queue_poller(scope_id: int) -> None:
             if queue_unit is None:
                 await asyncio.sleep(1)
                 continue
-            queue_unit.status = 'in_work'
-            session.flush()
+
+            if session.execute(
+                    update(tables.Queue).where(
+                        tables.Queue.id == queue_unit.id and tables.Queue.status == 'in_queue'
+                    ).values(status='in_work')
+            ).rowcount == 0:
+                continue
+
             total_rows = session.query(func.count(tables.Queue.id)).scalar()
 
         db_message = tables.Message(
