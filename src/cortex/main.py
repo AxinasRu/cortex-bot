@@ -154,12 +154,12 @@ async def queue_poller(scope_id: int) -> None:
                 select(tables.Queue)
                 .where(tables.Queue.status == 'in_queue')
             ).first()
+            if queue_unit is None:
+                await asyncio.sleep(1)
+                continue
             queue_unit.status = 'in_work'
             session.flush()
             total_rows = session.query(func.count(tables.Queue.id)).scalar()
-        if queue_unit is None:
-            await asyncio.sleep(1)
-            continue
 
         db_message = tables.Message(
             text=queue_unit.text
