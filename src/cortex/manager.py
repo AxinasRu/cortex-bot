@@ -12,11 +12,11 @@ OPENAI = 'openai'
 PROXIES = 'proxies'
 settings = {
     TELEGRAM: '',
-    OPENAI: [],
+    OPENAI: [
+        []
+    ],
     PROXIES: []
 }
-proxy_id = 0
-openai_id = 0
 
 try:
     with open(SETTINGS_FILE, 'r') as rf:
@@ -32,15 +32,14 @@ if settings[TELEGRAM] == '' or len(settings[OPENAI]) == 0:
     print("Insert tokens", flush=True)
     exit()
 
+proxy_id = 0
+openai_ids = [0] * len(settings[OPENAI])
+
 
 def proxy() -> str | None:
     if len(settings[PROXIES]) == 0:
         return None
     return settings[PROXIES][proxy_id]
-
-
-def openai() -> str:
-    return settings[OPENAI][openai_id]
 
 
 def switch_proxy():
@@ -49,11 +48,19 @@ def switch_proxy():
     print(f'Switching proxy to {proxy_id + 1}', flush=True)
 
 
-def switch_openai():
-    global openai_id
-    openai_id = (openai_id + 1) % len(settings[OPENAI])
-    print(f'Switching openai to {openai_id + 1}', flush=True)
+def openai_scopes() -> int:
+    return len(settings[OPENAI])
 
 
-def check_openai():
-    return len(settings[OPENAI]) == 1
+def openai(scope: int) -> str:
+    return settings[OPENAI][scope][openai_ids[scope]]
+
+
+def check_openai(scope: int):
+    return len(settings[OPENAI][scope]) == 1
+
+
+def switch_openai(scope: int):
+    global openai_ids
+    openai_ids[scope] = (openai_ids[scope] + 1) % len(settings[OPENAI][scope])
+    print(f'Switching openai to {openai_ids[scope] + 1}', flush=True)

@@ -90,13 +90,13 @@ async def on_message(message: types.Message):
         session.commit()
 
 
-async def process(data, session, url, callback: (lambda x: int)):
+async def process(scope_id: int, data, session, url, callback: (lambda x: int)):
     attempt = 0
     while True:
         attempt += 1
         callback(attempt)
         try:
-            resp = await get_query(data, session, url)
+            resp = await get_query(scope_id, data, session, url)
         except ServerDisconnectedError:
             await sleep(0.1)
             continue
@@ -118,10 +118,10 @@ async def process(data, session, url, callback: (lambda x: int)):
             return await resp.json()
         elif resp.status == 429:
             print(await resp.text(), flush=True)
-            if manager.check_openai():
+            if manager.check_openai(scope_id):
                 await sleep(25)
             else:
-                manager.switch_openai()
+                manager.switch_openai(scope_id)
         elif resp.status == 500 or resp.status == 503:
             await sleep(0.5)
         else:
@@ -129,8 +129,8 @@ async def process(data, session, url, callback: (lambda x: int)):
             print(resp.text(), flush=True)
 
 
-def get_query(data, session, url):
-    headers = {'Authorization': f'Bearer {manager.openai()}'}
+def get_query(scope_id, data, session, url):
+    headers = {'Authorization': f'Bearer {manager.openai(scope_id)}'}
     if manager.proxy() is None:
         execute = session.post(
             url,
@@ -147,13 +147,15 @@ def get_query(data, session, url):
     return execute
 
 
-async def queue_poller() -> None:
+async def queue_poller(scope_id: int) -> None:
     while True:
         with Session(database.engine) as session:
             queue_unit = session.scalars(
                 select(tables.Queue)
-                .where(tables.Queue.status == 'in_work')
+                .where(tables.Queue.status == 'in_queue')
             ).first()
+            queue_unit.status = 'in_work'
+            session.flush()
             total_rows = session.query(func.count(tables.Queue.id)).scalar()
         if queue_unit is None:
             await asyncio.sleep(1)
@@ -165,20 +167,22 @@ async def queue_poller() -> None:
 
         async with aiohttp.ClientSession() as session:
             resp_data = await process(
+                scope_id,
                 translate_prompt(queue_unit.text),
                 session,
                 "https://api.openai.com/v1/chat/completions",
-                lambda i: print(f'Translating {queue_unit.id}/{total_rows} - attempt {i}', flush=True)
+                lambda i: print(f'{scope_id} - translating {queue_unit.id}/{total_rows} - attempt {i}', flush=True)
             )
 
             translated: str = resp_data['choices'][0]['message']['content'].removeprefix('OUTPUT:').strip()
             db_message.translated = translated
 
             resp_data = await process(
+                scope_id,
                 {'input': translated},
                 session,
                 "https://api.openai.com/v1/moderations",
-                lambda i: print(f'Checking {queue_unit.id}/{total_rows} - attempt {i}', flush=True)
+                lambda i: print(f'{scope_id} - checking {queue_unit.id}/{total_rows} - attempt {i}', flush=True)
             )
 
             resp_data = resp_data['results'][0]['category_scores']
@@ -194,7 +198,7 @@ async def queue_poller() -> None:
             db_message.scan_harassment_threatening = resp_data['harassment/threatening']
             db_message.scan_violence = resp_data['violence']
 
-        print(f'Writing {queue_unit.id}/{total_rows}', flush=True)
+        print(f'{scope_id} - writing {queue_unit.id}/{total_rows}', flush=True)
         with Session(database.engine) as session:
             try:
                 session.add(db_message)
@@ -216,7 +220,8 @@ async def queue_poller() -> None:
 def entrypoint():
     loop = asyncio.get_event_loop()
     loop.create_task(dp.start_polling())
-    loop.create_task(queue_poller())
+    for scope_id in range(manager.openai_scopes()):
+        loop.create_task(queue_poller(scope_id))
     loop.run_forever()
 
 

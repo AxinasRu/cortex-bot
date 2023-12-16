@@ -18,7 +18,7 @@ class Queue(Base):
     chat_id: Mapped[int] = mapped_column(nullable=False)
     user_id: Mapped[int] = mapped_column(nullable=False)
     text: Mapped[str] = mapped_column(nullable=False)
-    status: Mapped[str] = mapped_column(nullable=False, server_default='in_work')
+    status: Mapped[str] = mapped_column(nullable=False, server_default='in_queue')
 
 
 class Log(Base):
