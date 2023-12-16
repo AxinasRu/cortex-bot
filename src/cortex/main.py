@@ -150,6 +150,7 @@ def get_query(scope_id, data, session, url):
 async def queue_poller(scope_id: int) -> None:
     while True:
         with Session(database.engine) as session:
+            total_rows = session.query(func.count(tables.Queue.id)).scalar()
             queue_unit = session.scalars(
                 select(tables.Queue)
                 .where(tables.Queue.status == 'in_queue')
@@ -158,14 +159,16 @@ async def queue_poller(scope_id: int) -> None:
                 await asyncio.sleep(1)
                 continue
 
-            if session.execute(
-                    update(tables.Queue).where(
-                        tables.Queue.id == queue_unit.id and tables.Queue.status == 'in_queue'
-                    ).values(status='in_work')
-            ).rowcount == 0:
+            execute = session.execute(
+                update(tables.Queue)
+                .where(tables.Queue.id == queue_unit.id)
+                .where(tables.Queue.status == 'in_queue')
+                .values(status='in_work')
+            )
+            session.commit()
+            session.refresh(queue_unit)
+            if execute.rowcount == 0:
                 continue
-
-            total_rows = session.query(func.count(tables.Queue.id)).scalar()
 
         db_message = tables.Message(
             text=queue_unit.text
@@ -177,7 +180,7 @@ async def queue_poller(scope_id: int) -> None:
                 translate_prompt(queue_unit.text),
                 session,
                 "https://api.openai.com/v1/chat/completions",
-                lambda i: print(f'{scope_id} - translating {queue_unit.id}/{total_rows} - attempt {i}', flush=True)
+                lambda i: print(f'{scope_id + 1} - translating {queue_unit.id}/{total_rows} - attempt {i}', flush=True)
             )
 
             translated: str = resp_data['choices'][0]['message']['content'].removeprefix('OUTPUT:').strip()
@@ -188,7 +191,7 @@ async def queue_poller(scope_id: int) -> None:
                 {'input': translated},
                 session,
                 "https://api.openai.com/v1/moderations",
-                lambda i: print(f'{scope_id} - checking {queue_unit.id}/{total_rows} - attempt {i}', flush=True)
+                lambda i: print(f'{scope_id + 1} - checking {queue_unit.id}/{total_rows} - attempt {i}', flush=True)
             )
 
             resp_data = resp_data['results'][0]['category_scores']
@@ -204,7 +207,7 @@ async def queue_poller(scope_id: int) -> None:
             db_message.scan_harassment_threatening = resp_data['harassment/threatening']
             db_message.scan_violence = resp_data['violence']
 
-        print(f'{scope_id} - writing {queue_unit.id}/{total_rows}', flush=True)
+        print(f'{scope_id + 1} - writing {queue_unit.id}/{total_rows}', flush=True)
         with Session(database.engine) as session:
             try:
                 session.add(db_message)
