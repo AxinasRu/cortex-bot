@@ -170,6 +170,9 @@ async def queue_poller(scope_id: int) -> None:
             if execute.rowcount == 0:
                 continue
 
+            print(f'{scope_id + 1} - skipped translate - {queue_unit.id}/{total_rows}', flush=True)
+            print(f'{scope_id + 1} - writing - {queue_unit.id}/{total_rows}', flush=True)
+
             db_message = session.scalars(
                 select(tables.Message).
                 where(tables.Message.text == queue_unit.text)
@@ -195,7 +198,7 @@ async def queue_poller(scope_id: int) -> None:
                 translate_prompt(queue_unit.text),
                 session,
                 "https://api.openai.com/v1/chat/completions",
-                lambda i: print(f'{scope_id + 1} - translating {queue_unit.id}/{total_rows} - attempt {i}', flush=True)
+                lambda i: print(f'{scope_id + 1} - translating - {queue_unit.id}/{total_rows} - attempt {i}', flush=True)
             )
 
         translated: str = resp_data['choices'][0]['message']['content'].removeprefix('OUTPUT:').strip()
