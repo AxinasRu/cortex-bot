@@ -170,6 +170,21 @@ async def queue_poller(scope_id: int) -> None:
             if execute.rowcount == 0:
                 continue
 
+            db_message = session.scalars(
+                select(tables.Message).
+                where(tables.Message.text == queue_unit.text)
+            ).one_or_none()
+            if db_message is not None:
+                session.add(tables.Log(
+                    chat_id=queue_unit.chat_id,
+                    user_id=queue_unit.user_id,
+                    message_id=db_message.id
+                ))
+                queue_unit.status = 'done'
+                session.add(queue_unit)
+                session.commit()
+                continue
+
         db_message = tables.Message(
             text=queue_unit.text
         )
@@ -183,9 +198,10 @@ async def queue_poller(scope_id: int) -> None:
                 lambda i: print(f'{scope_id + 1} - translating {queue_unit.id}/{total_rows} - attempt {i}', flush=True)
             )
 
-            translated: str = resp_data['choices'][0]['message']['content'].removeprefix('OUTPUT:').strip()
-            db_message.translated = translated
+        translated: str = resp_data['choices'][0]['message']['content'].removeprefix('OUTPUT:').strip()
+        db_message.translated = translated
 
+        async with aiohttp.ClientSession() as session:
             resp_data = await process(
                 scope_id,
                 {'input': translated},
@@ -194,33 +210,44 @@ async def queue_poller(scope_id: int) -> None:
                 lambda i: print(f'{scope_id + 1} - checking {queue_unit.id}/{total_rows} - attempt {i}', flush=True)
             )
 
-            resp_data = resp_data['results'][0]['category_scores']
-            db_message.scan_sexual = resp_data['sexual']
-            db_message.scan_hate = resp_data['hate']
-            db_message.scan_harassment = resp_data['harassment']
-            db_message.scan_self_harm = resp_data['self-harm']
-            db_message.scan_sexual_minors = resp_data['sexual/minors']
-            db_message.scan_hate_threatening = resp_data['hate/threatening']
-            db_message.scan_violence_graphic = resp_data['violence/graphic']
-            db_message.scan_self_harm_intent = resp_data['self-harm/intent']
-            db_message.scan_self_harm_instructions = resp_data['self-harm/instructions']
-            db_message.scan_harassment_threatening = resp_data['harassment/threatening']
-            db_message.scan_violence = resp_data['violence']
+        resp_data = resp_data['results'][0]['category_scores']
+        db_message.scan_sexual = resp_data['sexual']
+        db_message.scan_hate = resp_data['hate']
+        db_message.scan_harassment = resp_data['harassment']
+        db_message.scan_self_harm = resp_data['self-harm']
+        db_message.scan_sexual_minors = resp_data['sexual/minors']
+        db_message.scan_hate_threatening = resp_data['hate/threatening']
+        db_message.scan_violence_graphic = resp_data['violence/graphic']
+        db_message.scan_self_harm_intent = resp_data['self-harm/intent']
+        db_message.scan_self_harm_instructions = resp_data['self-harm/instructions']
+        db_message.scan_harassment_threatening = resp_data['harassment/threatening']
+        db_message.scan_violence = resp_data['violence']
 
         print(f'{scope_id + 1} - writing {queue_unit.id}/{total_rows}', flush=True)
         with Session(database.engine) as session:
-            try:
-                session.add(db_message)
-                session.flush()
-                session.refresh(db_message)
+            old_message = session.scalars(
+                select(tables.Message).
+                where(tables.Message.text == queue_unit.text)
+            ).one_or_none()
+            if old_message is not None:
                 session.add(tables.Log(
                     chat_id=queue_unit.chat_id,
                     user_id=queue_unit.user_id,
-                    message_id=db_message.id
+                    message_id=old_message.id
                 ))
-            except IntegrityError as e:
-                print(e)
-                session.rollback()
+            else:
+                try:
+                    session.add(db_message)
+                    session.flush()
+                    session.refresh(db_message)
+                    session.add(tables.Log(
+                        chat_id=queue_unit.chat_id,
+                        user_id=queue_unit.user_id,
+                        message_id=db_message.id
+                    ))
+                except IntegrityError as e:
+                    print(e)
+                    session.rollback()
             queue_unit.status = 'done'
             session.add(queue_unit)
             session.commit()
