@@ -227,6 +227,13 @@ async def queue_poller(scope_id: int) -> None:
 
 
 def entrypoint():
+    with Session(database.engine) as session:
+        session.execute(
+            update(tables.Queue)
+            .where(tables.Queue.status == 'in_work')
+            .values(status='in_queue')
+        )
+
     loop = asyncio.get_event_loop()
     loop.create_task(dp.start_polling())
     for scope_id in range(manager.openai_scopes()):
