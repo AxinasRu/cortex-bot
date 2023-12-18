@@ -170,14 +170,13 @@ async def queue_poller(scope_id: int) -> None:
             if execute.rowcount == 0:
                 continue
 
-            print(f'{scope_id + 1} - skipped translate - {queue_unit.id}/{total_rows}', flush=True)
-            print(f'{scope_id + 1} - writing - {queue_unit.id}/{total_rows}', flush=True)
-
             db_message = session.scalars(
                 select(tables.Message).
                 where(tables.Message.text == queue_unit.text)
             ).one_or_none()
             if db_message is not None:
+                print(f'{scope_id + 1} - skipped translate - {queue_unit.id}/{total_rows}', flush=True)
+                print(f'{scope_id + 1} - writing - {queue_unit.id}/{total_rows}', flush=True)
                 session.add(tables.Log(
                     chat_id=queue_unit.chat_id,
                     user_id=queue_unit.user_id,
