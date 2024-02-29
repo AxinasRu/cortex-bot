@@ -112,7 +112,7 @@ async def process(scope_id: int, data, session, url, callback: (lambda x: int)):
             print(type(e), flush=True)
             print(e, flush=True)
             continue
-        if resp.status == 502:
+        if resp.status == 502 or resp.status == 403:
             manager.switch_proxy()
         elif resp.status == 200:
             return await resp.json()
@@ -126,7 +126,7 @@ async def process(scope_id: int, data, session, url, callback: (lambda x: int)):
             await sleep(0.5)
         else:
             print(resp.status, flush=True)
-            print(resp.text(), flush=True)
+            print(await resp.text(), flush=True)
 
 
 def get_query(scope_id, data, session, url):
